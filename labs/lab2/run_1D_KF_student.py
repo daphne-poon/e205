@@ -188,15 +188,17 @@ def main():
 
     # Plot raw data and estimate
     plt.figure(1)
-    plt.suptitle("1D Kalman Filtering: Yaw Measurements")
+    plt.suptitle("")
     plt.subplot(1, 2, 1)
     plot_yaw(yaw_dict, time_stamps, title="Full Log")
     plt.subplot(1, 2, 2)
     plot_yaw(yaw_dict,
              time_stamps,
              title="Zoomed",
-             xlim=[10, 20],
-             ylim=[275, 315])
+             xlim=[20, 30],
+             ylim=[275, 295])
+            #  ylim=[270, 290])
+    plt.tight_layout(w_pad=0.5)
     plt.show()
 
     print("Exiting...")

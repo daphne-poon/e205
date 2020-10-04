@@ -468,7 +468,7 @@ def main():
         print(t)
         print(state_pred_t[4])
         # Correction Step
-        if (t % 2) == 0:
+        if (t % 2) != 1:
             # Get measurement
             yaw = wrap_to_pi((math.pi/180)*(yaw_lidar[t]))
             z_t = np.array([[-np.sin(yaw)*x_lidar[t]+np.cos(yaw)*y_lidar[t]],
@@ -494,12 +494,63 @@ def main():
                                          lon_origin=lon_origin)
         gps_estimates[:, t] = np.array([x_gps, y_gps])
 
+    # all  corrected
+
+    #  Initialize filter
+    """STUDENT CODE START"""
+    N = 7 # number of states
+    state_est_t_prev = np.zeros([7,1])
+    var_est_t_prev = np.identity(N)
+    state_estimates_all_corr = np.empty((N, len(time_stamps)))
+    covariance_estimates_all_corr = np.empty((N, N, len(time_stamps)))
+    gps_estimates_all_corr = np.empty((2, len(time_stamps)))
+
+    for t, _ in enumerate(time_stamps):
+
+        """STUDENT CODE START"""
+        delta_t = time_stamps[t] - time_stamps[t-1]
+        delta_t = delta_t/1000000
+        
+        # Get control input
+        u_t = np.array([[x_ddot[t]], [y_ddot[t]]])
+        """STUDENT CODE END"""
+        print(state_est_t_prev)
+        # Prediction Step
+        state_pred_t, var_pred_t = prediction_step(state_est_t_prev, u_t, var_est_t_prev, delta_t)
+        
+        # Get measurement
+        yaw = wrap_to_pi((math.pi/180)*(yaw_lidar[t]))
+        z_t = np.array([[-np.sin(yaw)*x_lidar[t]+np.cos(yaw)*y_lidar[t]],
+                        [-np.cos(yaw)*x_lidar[t]-np.sin(yaw)*y_lidar[t]],
+                        [yaw]])
+        state_est_t, var_est_t = correction_step(state_pred_t,
+                                                z_t,
+                                                var_pred_t)
+
+        #  For clarity sake/teaching purposes, we explicitly update t->(t-1)
+        state_est_t_prev = state_est_t
+        var_est_t_prev = var_est_t
+
+        # Log Data
+
+        state_estimates_all_corr[:, t] = state_est_t[:,0]
+        covariance_estimates_all_corr[:, :, t] = var_est_t
+
+        x_gps, y_gps = convert_gps_to_xy(lat_gps=lat_gps[t],
+                                         lon_gps=lon_gps[t],
+                                         lat_origin=lat_origin,
+                                         lon_origin=lon_origin)
+        gps_estimates_all_corr[:, t] = np.array([x_gps, y_gps])
+
+    
     """STUDENT CODE START"""
 
     fig, ax = plt.subplots()
+    ax1=plt.subplot(211)
+    ax2=plt.subplot(212)
     # Plot or print results here
     """XY stuff"""
-    ax.set_ylim(-0.2,10000000)
+    # ax.set_ylim(-0.001,0.002)
     # ax.set_xlim(-1,12)
     # ax.plot(state_estimates[0,:], state_estimates[1, :], 'go', markersize=2)
     # ax.plot(gps_estimates[0], gps_estimates[1], 'bo', markersize=2)
@@ -509,48 +560,19 @@ def main():
     # ax.set_ylabel("Y Position (m)")
     # ax.legend(["Estimated Position", "GPS Position", "Expected Path"],loc='upper left')
 
-    """YAW STUFF"""
-    # yaw angle as a function of time.
-    # plt.clear()
-    # plt.ylim(-12,2.5)
-    # print(state_estimates.shape)
-
-    # print(covariance_estimates[:, :, 0])
-
-    """COVAR ELLIPSE STUFF"""
-    # lambda_, v = np.linalg.eig(covariance_estimates[:2, :2, 10])
-    # lambda_ = np.sqrt(lambda_)
-
-    # for i in range(0, 800, 100):
-    #     for j in range(1,3):
-    #         x = state_estimates[0][i]
-    #         y = state_estimates[1][i]
-    #         print(state_estimates.shape)
-    #         print(x,y)
-    #         # print(x,y)
-    #         ell = Ellipse(xy=(x, y),
-    #                     width=lambda_[0]*j*2, height=lambda_[1]*j*2,
-    #                     angle=np.rad2deg(np.arccos(v[0, 0])), color='black', ls='--')
-
-    #         ell.set_facecolor('none')
-    #         ax.add_artist(ell)
-    # ax.scatter(x, y)
-
     """covariance matrix elements"""
-    ax.plot(covariance_estimates[0, 0, :], 'b-')
+    # ax.plot(covariance_estimates[0, 0, :], 'b-')
     # ax.plot(covariance_estimates[1, 1, :], 'go')
-
-
-    """??"""
-    # yaw_lidar_f = [wrap_to_pi((math.pi/180)*x) for x in yaw_lidar]
-
-    # plt.plot(range(len(time_stamps)), state_estimates[4,:])
-    # plt.plot(range(len(time_stamps)), yaw_lidar_f)
-    # plt.legend(["Estimated Yaw", "Raw Yaw Measurement"])
-    # plt.xlabel("Timestep")
-    # plt.ylabel("Angle (Radians)")
-    # plt.plot(gps_estimates[0], gps_estimates[1], 'bo')
-
+    # ax.plot(covariance_estimates[2, 2, :], 'go')
+    # ax.plot(covariance_estimates[3, 3, :], 'go')
+    # ax.plot(covariance_estimates[4, 4, :], 'go')
+    ax1.plot(covariance_estimates[1, 1, 5:], 'g-', markersize=5)
+    ax1.set_ylabel("Covariance")
+    ax1.set_xlabel("Timestamp")
+    ax1.set_
+    ax2.plot(covariance_estimates_all_corr[1, 1, 5:], 'b-', markersize=5)
+    ax2.set_ylabel("Covariance")
+    ax2.set_xlabel("Timestamp")
 
     """STUDENT CODE END"""
     plt.show()

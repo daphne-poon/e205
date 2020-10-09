@@ -190,7 +190,7 @@ def calc_prop_jacobian_x(x_t_prev, u_t, d_t):
         [0, 0, 0, 1, 0, 0, 0], 
         [0, 0, 0, 0, 1, 0, d_t], 
         [0, 0, 0, 0, 1, 0, 0], 
-        [0, 0, 0, 0, 1, -1, 0]
+        [0, 0, 0, 0, 1/d_t, -1/d_t, 0]
     ])
     """STUDENT CODE END"""
 
@@ -250,11 +250,9 @@ def prediction_step(x_t_prev, u_t, sigma_x_t_prev, delta_t):
 
     x_bar_t = gxt@x_t_prev + gut@u_t
 
-    x_bar_t[-1] = (wrap_to_pi(x_bar_t[-1]))/delta_t
+    # x_bar_t[-1] = (wrap_to_pi(x_bar_t[-1]))/delta_t
 
-    #print("degrees:", x_bar_t[3])
-    #print(wrap_to_pi(x_bar_t[3]))
-    x_bar_t[3] = wrap_to_pi(x_bar_t[3])
+    x_bar_t[4] = wrap_to_pi(x_bar_t[4])
 
     sigma_x_bar_t = gxt@sigma_x_t_prev@(gxt.T) + gut@sigma_u_t@(gut.T)
     """STUDENT CODE END"""
@@ -507,14 +505,12 @@ def main():
 
     for t, _ in enumerate(time_stamps):
 
-        """STUDENT CODE START"""
         delta_t = time_stamps[t] - time_stamps[t-1]
         delta_t = delta_t/1000000
         
         # Get control input
         u_t = np.array([[x_ddot[t]], [y_ddot[t]]])
-        """STUDENT CODE END"""
-        print(state_est_t_prev)
+
         # Prediction Step
         state_pred_t, var_pred_t = prediction_step(state_est_t_prev, u_t, var_est_t_prev, delta_t)
         
@@ -546,8 +542,11 @@ def main():
     """STUDENT CODE START"""
 
     fig, ax = plt.subplots()
-    ax1=plt.subplot(211)
-    ax2=plt.subplot(212)
+    ax1=plt.subplot(111)
+    # ax2=plt.subplot(212)
+    ax1.set_xlim(200, 300)
+    ax1.set_ylim(0, 0.2)
+    # ax2.set_xlim(250, 270)
     # Plot or print results here
     """XY stuff"""
     # ax.set_ylim(-0.001,0.002)
@@ -566,13 +565,14 @@ def main():
     # ax.plot(covariance_estimates[2, 2, :], 'go')
     # ax.plot(covariance_estimates[3, 3, :], 'go')
     # ax.plot(covariance_estimates[4, 4, :], 'go')
-    ax1.plot(covariance_estimates[1, 1, 5:], 'g-', markersize=5)
+    ax1.plot(covariance_estimates[0, 0, 5:], 'go-', markersize=5)
     ax1.set_ylabel("Covariance")
     ax1.set_xlabel("Timestamp")
-    ax1.set_
-    ax2.plot(covariance_estimates_all_corr[1, 1, 5:], 'b-', markersize=5)
-    ax2.set_ylabel("Covariance")
-    ax2.set_xlabel("Timestamp")
+    ax1.title.set_text('')
+    ax1.plot(covariance_estimates_all_corr[0, 0, 5:], 'bo-', markersize=5)
+    ax1.legend(["Corrected Every Other Timestep", "Corrected Every Timestep"])
+    # ax2.set_ylabel("Covariance")
+    # ax2.set_xlabel("Timestamp")
 
     """STUDENT CODE END"""
     plt.show()

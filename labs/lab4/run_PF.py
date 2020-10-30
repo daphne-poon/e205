@@ -1,11 +1,6 @@
 """
-Author: Andrew Q. Pham
-Email: apham@g.hmc.edu
-Date of Creation: 2/26/20
-Description:
-    Extended Kalman Filter implementation to filtering localization estimate
-    This code is for teaching purposes for HMC ENGR205 System Simulation Lab 3
-    Student code version with parts omitted.
+Author: Sabrina Shen and Daphne Poon
+Date of Creation: 10/14/2020
 """
 
 import csv
@@ -24,6 +19,10 @@ DT = 0.1
 X_LANDMARK = 5  # meters
 Y_LANDMARK = -5  # meters
 EARTH_RADIUS = 6.3781E6  # meters
+SEED = 0
+NUM_PARTICLES = 1000
+K_RAND_X_ACC = 0.25
+K_RAND_THETA = 0.25
 
 
 def load_data(filename):
@@ -154,162 +153,61 @@ def wrap_to_pi(angle):
         angle += 2*math.pi
     return angle
 
-
-def calc_prop_jacobian_x(x_t_prev, u_t, d_t):
-    """Calculate the Jacobian of your motion model with respect to state
-
-    Parameters:
-    x_t_prev (np.array) -- the previous state estimate
-    u_t (np.array)      -- the current control input
-
-    Returns:
-    G_x_t (np.array)    -- Jacobian of motion model wrt to x
-    """
-    """STUDENT CODE START"""
-    G_x_t = np.array([
-        [1, 0, d_t, 0, 0, 0, 0], 
-        [0, 1, 0, d_t, 0, 0, 0], 
-        [0, 0, 1, 0, 0, 0, 0], 
-        [0, 0, 0, 1, 0, 0, 0], 
-        [0, 0, 0, 0, 1, 0, d_t], 
-        [0, 0, 0, 0, 1, 0, 0], 
-        [0, 0, 0, 0, (1/d_t), -(1/d_t), 0]
-    ])
-    """STUDENT CODE END"""
-
-    return G_x_t
-
-
-def calc_prop_jacobian_u(x_t_prev, u_t, d_t):
-    """Calculate the Jacobian of motion model with respect to control input
-
-    Parameters:
-    x_t_prev (np.array)     -- the previous state estimate
-    u_t (np.array)          -- the current control input
-
-    Returns:
-    G_u_t (np.array)        -- Jacobian of motion model wrt to u
+def get_motion_model(p, u_t, d_t):
+    """ p = [x, y, theta, weight]
     """
 
-    """STUDENT CODE START"""
-    theta_p = x_t_prev[4][0]
+    sigma_x_acc = 0.4170670659498302
+    sigma_yaw = 0.014965442010048293
+    
 
-    G_u_t = np.array([
-        [0, 0], 
-        [0, 0], 
-        [d_t*(np.cos(theta_p)), d_t*(np.sin(theta_p))], 
-        [-d_t*(np.sin(theta_p)), d_t*(np.cos(theta_p))],
-        [0, 0], 
-        [0, 0], 
-        [0, 0]
-    ])
-    """STUDENT CODE END"""
+    theta = wrap_to_pi(p[2])
 
-    return G_u_t
+    # add some randomness
+    x_acc = u_t[0] + random.gauss(0, sigma_x_acc)
+    yaw = wrap_to_pi(theta + random.gauss(0, sigma_yaw))
 
 
-def prediction_step(x_t_prev, u_t, sigma_x_t_prev, d_t):
-    """Compute the prediction of EKF
+    # new values
+    mu_x = p[0] + x_acc*cos(theta)*d_t
+    mu_y = p[1] + x_acc*sin(theta)*d_t
+    mu_theta = yaw
 
-    Parameters:
-    x_t_prev (np.array)         -- the previous state estimate
-    u_t (np.array)              -- the control input
-    sigma_x_t_prev (np.array)   -- the previous variance estimate
+    return create_particle(mu_x, mu_y, mu_theta, 0)
 
-    Returns:
-    x_bar_t (np.array)          -- the predicted state estimate of time t
-    sigma_x_bar_t (np.array)    -- the predicted variance estimate of time t
+def get_new_weight(p, z_t, d_t):
     """
-
-    """STUDENT CODE START"""
-    # Covariance matrix of control input
-    sigma_u_t = np.array([
-        [0.4170670659498302, 0],
-        [0, 0.5488300624965801]
-    ]) # add shape of matrix
-
-    gxt = calc_prop_jacobian_x(x_t_prev, u_t, d_t)
-    gut = calc_prop_jacobian_u(x_t_prev, u_t, d_t)
-
-    x_bar_t = gxt@x_t_prev
-
-    # x_bar_t[6] = (wrap_to_pi(x_bar_t[6]))/d_t
-    # x_bar_t[6] = x_bar_t[6]/d_t
-    x_bar_t[4] = wrap_to_pi(x_bar_t[4])
-
-    x_bar_t += gut@u_t
-
-    sigma_x_bar_t = gxt@sigma_x_t_prev@(gxt.T) + gut@sigma_u_t@(gut.T)
-
-    return [x_bar_t, sigma_x_bar_t]
-
-
-def calc_meas_jacobian(x_bar_t):
-    """Calculate the Jacobian of your measurment model with respect to state
-
-    Parameters:
-    x_bar_t (np.array)  -- the predicted state
-
-    Returns:
-    H_t (np.array)      -- Jacobian of measurment model
     """
-    H_t = np.array([
-        [-1, 0, 0, 0, 0, 0, 0],
-        [0, -1, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 1, 0, 0]
-    ])
+    sigma_x = 0.06836275526116181
+    sigma_y = 0.12908857925993825
 
-    return H_t
+    p[3] = 
+    
 
+    return p
 
-def calc_kalman_gain(sigma_x_bar_t, H_t):
-    """Calculate the Kalman Gain
+def prediction_step(particles_prev, x_t_prev, u_t, z_t, d_t):
+    """Compute the prediction of PF"""
+    n = len(particles_prev)
+    particles = np.zeroes(n)
+    # 1. for i = 1 ... n
+    for i in xrange(n):
+        # 2. pick p_t-1^i from P_{t-1}
+        curr = particles_prev[i]
 
-    Parameters:
-    sigma_x_bar_t (np.array)  -- the predicted state covariance matrix
-    H_t (np.array)            -- the measurement Jacobian
+        # 3. sample x_t^i with probability P(x_t^i | x_{t-1}^i, u_t),
+        #    where o_t is the odometry measurement
+        xi = get_motion_model(curr, u_t)
 
-    Returns:
-    K_t (np.array)            -- Kalman Gain
-    """
-    """STUDENT CODE START"""
-    # Covariance matrix of measurments
-    sigma_z_t = np.array([
-        [0.06836275526116181, 0, 0],
-        [0, 0.12908857925993825, 0],
-        [0, 0, 0.014965442010048293]
-    ])
-    idk = (H_t@sigma_x_bar_t@H_t.T)+sigma_z_t
-    idkk = np.linalg.inv(idk)
-    K_t = sigma_x_bar_t@(H_t.T)@idkk
-    """STUDENT CODE END"""
-    return K_t
+        # 4. calculate w_t^i = P(z_t | x_t^i)
+        wi = get_new_weight(z_t, x_t_prev)
+        xi[3] = wi
+
+        # 5. add p_t^i = [x_t^i w_t^i] to P_t^predict
+        particles[i] = 
 
 
-def calc_meas_prediction(x_bar_t):
-    """Calculate predicted measurement based on the predicted state
-
-    Parameters:
-    x_bar_t (np.array)  -- the predicted state
-
-    Returns:
-    z_bar_t (np.array)  -- the predicted measurement
-    """
-
-    """STUDENT CODE START"""
-    XP = 5
-    YP = -5
-    z_pxt = XP - x_bar_t[0]
-    z_pyt = YP - x_bar_t[1]
-    z_theta = x_bar_t[4]
-    z_bar_t = np.array([
-        z_pxt,
-        z_pyt,
-        wrap_to_pi(z_theta)
-    ])
-    """STUDENT CODE END"""
-
-    return z_bar_t
+    return x_bar_t, sigma_x_bar_t
 
 
 def correction_step(x_bar_t, z_t, sigma_x_bar_t):
@@ -327,14 +225,27 @@ def correction_step(x_bar_t, z_t, sigma_x_bar_t):
 
     """STUDENT CODE START"""
 
-    H_t = calc_meas_jacobian(x_bar_t)
-    z_bar_t = calc_meas_prediction(x_bar_t)
-    K_t = calc_kalman_gain(sigma_x_bar_t, H_t)
-    
-    x_est_t = x_bar_t + K_t@(z_t - z_bar_t)
-    sigma_x_est_t = (np.eye(7) - K_t@H_t)@sigma_x_bar_t
+
     """STUDENT CODE END"""
-    return [x_est_t, sigma_x_est_t]
+    return x_est_t, sigma_x_est_t
+
+def initialize_filter(x_min, x_max, y_min, y_max, n = NUM_PARTICLES):
+    """Return P_0, n states in the work space"""
+    random.seed(SEED)
+    particles = np.zeroes(n)
+    for i in xrange(n):
+        x = random.uniform(x_min, x_max)
+        y = random.uniform(y_min, y_max)
+        theta = random.uniform(-math.pi, math.pi)
+        weight = 1/n
+        particles[i] = create_particle(x, y, theta, weight)
+    return particles
+
+
+def create_particle(x,y,theta,weight):
+    """Returns p_t (state + weight)
+    """
+    return np.array([x,y,theta,weight])
 
 def confidence_ellipse(x, y, ax, n_std=3.0, facecolor='none', **kwargs):
     """
@@ -407,7 +318,6 @@ def rmse(x_vec,y_vec):
     plt.xlabel("Time Step")
     plt.ylabel("RMSE")
     return rms_list
-
 
 def main():
     """Run a EKF on logged data from IMU and LiDAR moving in a box formation around a landmark"""
